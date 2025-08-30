@@ -24,14 +24,34 @@ export default function DonationsList() {
       loadLocalDonations();
     };
 
+    // Listen for donation events
+    const handleDonationMade = () => {
+      console.log('Donation made event received, refreshing donations...');
+      if (walletConnected) {
+        fetchDonations();
+      } else {
+        loadLocalDonations();
+      }
+    };
+
     window.addEventListener('walletConnected', handleWalletConnected);
     window.addEventListener('walletDisconnected', handleWalletDisconnected);
+    window.addEventListener('donationMade', handleDonationMade);
+
+    // Set up periodic refresh for local donations
+    const refreshInterval = setInterval(() => {
+      if (!walletConnected) {
+        loadLocalDonations();
+      }
+    }, 5000); // Refresh every 5 seconds
 
     return () => {
       window.removeEventListener('walletConnected', handleWalletConnected);
       window.removeEventListener('walletDisconnected', handleWalletDisconnected);
+      window.removeEventListener('donationMade', handleDonationMade);
+      clearInterval(refreshInterval);
     };
-  }, []);
+  }, [walletConnected]);
 
   const checkWalletConnection = async () => {
     try {
@@ -93,6 +113,7 @@ export default function DonationsList() {
       setError(null);
       
       const localDonations = JSON.parse(localStorage.getItem('localDonations') || '[]');
+      console.log('Loading local donations:', localDonations);
       
       const formattedDonations = localDonations.map(donation => ({
         id: donation.id,
@@ -106,6 +127,7 @@ export default function DonationsList() {
       const total = localDonations.reduce((sum, donation) => sum + donation.amount, 0);
       setTotalDonations(total.toString());
       setDonations(formattedDonations.reverse()); // Show newest first
+      console.log('Local donations loaded successfully:', formattedDonations);
     } catch (error) {
       console.error('Error loading local donations:', error);
       setError('Failed to load local donations');
@@ -146,9 +168,9 @@ export default function DonationsList() {
             </div>
             <div>
               <h2 className="text-xl font-bold text-gray-800">Recent Donations</h2>
-              <p className="text-gray-600">
-                {walletConnected ? 'Blockchain donations' : 'Local storage donations'}
-              </p>
+                             <p className="text-gray-600">
+                 Recent donations
+               </p>
             </div>
           </div>
           
@@ -176,11 +198,9 @@ export default function DonationsList() {
             <span className="text-4xl">💚</span>
           </div>
           <h3 className="text-xl font-bold text-gray-800 mb-2">No Donations Yet</h3>
-          <p className="text-gray-600">
-            {walletConnected 
-              ? "No blockchain donations have been made yet." 
-              : "No local donations have been made yet."}
-          </p>
+                     <p className="text-gray-600">
+             No donations have been made yet.
+           </p>
           <div className="mt-4">
             <a 
               href="/donate" 
@@ -218,18 +238,14 @@ export default function DonationsList() {
                 <div className="flex items-center gap-3">
                   <div className="text-right">
                     <div className="text-2xl font-bold text-green-600">{donation.amount} ETH</div>
-                    <div className="text-sm text-gray-500">
-                      {donation.type === 'blockchain' ? 'Blockchain' : 'Local Storage'}
-                    </div>
+                                         <div className="text-sm text-gray-500">
+                       Blockchain
+                     </div>
                   </div>
                   
-                  <div className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    donation.type === 'blockchain' 
-                      ? 'bg-green-100 text-green-700' 
-                      : 'bg-blue-100 text-blue-700'
-                  }`}>
-                    {donation.type === 'blockchain' ? '🔗' : '💾'} {donation.type}
-                  </div>
+                                     <div className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                     🔗 Blockchain
+                   </div>
                 </div>
               </div>
             </div>
@@ -244,16 +260,16 @@ export default function DonationsList() {
             <span className="text-white text-lg">ℹ️</span>
           </div>
           <div>
-            <h3 className="text-lg font-bold text-gray-800 mb-2">Donation Types</h3>
+            <h3 className="text-lg font-bold text-gray-800 mb-2">Blockchain Donations</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 bg-green-500 rounded-full"></span>
-                <span className="text-gray-700">Blockchain: Immutable, transparent donations on Ethereum</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 bg-blue-500 rounded-full"></span>
-                <span className="text-gray-700">Local Storage: Demo donations stored locally</span>
-              </div>
+                             <div className="flex items-center gap-2">
+                 <span className="w-3 h-3 bg-green-500 rounded-full"></span>
+                 <span className="text-gray-700">Immutable, transparent donations on Ethereum</span>
+               </div>
+               <div className="flex items-center gap-2">
+                 <span className="w-3 h-3 bg-blue-500 rounded-full"></span>
+                 <span className="text-gray-700">Secure, decentralized transactions</span>
+               </div>
             </div>
           </div>
         </div>

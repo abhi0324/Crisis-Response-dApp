@@ -14,17 +14,21 @@ export default function Header() {
 
   const checkWalletConnection = async () => {
     try {
+      console.log('=== HEADER: CHECKING WALLET CONNECTION ===');
       const address = await isWalletConnected();
+      console.log('Header - Wallet address:', address);
       if (address) {
         setWalletAddress(address);
+        console.log('Header - Wallet connected, dispatching event');
         // Dispatch custom event to notify other components
         window.dispatchEvent(new CustomEvent('walletConnected', { detail: address }));
       } else {
         setWalletAddress('');
+        console.log('Header - No wallet found, dispatching disconnect event');
         window.dispatchEvent(new CustomEvent('walletDisconnected'));
       }
     } catch (error) {
-      console.error('Error checking wallet connection:', error);
+      console.error('Header - Error checking wallet connection:', error);
       setWalletAddress('');
       window.dispatchEvent(new CustomEvent('walletDisconnected'));
     }
@@ -33,12 +37,14 @@ export default function Header() {
   const handleConnectWallet = async () => {
     setIsConnecting(true);
     try {
+      console.log('=== HEADER: CONNECTING WALLET ===');
       const { address } = await connectWallet();
       setWalletAddress(address);
+      console.log('Header - Wallet connected successfully:', address);
       // Dispatch custom event to notify other components
       window.dispatchEvent(new CustomEvent('walletConnected', { detail: address }));
     } catch (error) {
-      console.error('Failed to connect wallet:', error);
+      console.error('Header - Failed to connect wallet:', error);
       alert('Failed to connect wallet. Please make sure Coinbase Wallet is installed.');
     } finally {
       setIsConnecting(false);
@@ -46,6 +52,7 @@ export default function Header() {
   };
 
   const handleDisconnectWallet = () => {
+    console.log('=== HEADER: DISCONNECTING WALLET ===');
     disconnectWallet();
     setWalletAddress('');
     window.dispatchEvent(new CustomEvent('walletDisconnected'));

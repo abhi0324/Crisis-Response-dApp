@@ -19,6 +19,7 @@ let coinbaseWallet;
 let provider;
 let signer;
 let contract;
+let walletAddress = null;
 
 // Check if Coinbase Wallet extension is available
 const isCoinbaseWalletAvailable = () => {
@@ -78,6 +79,8 @@ const initializeCoinbaseWallet = () => {
 
 export const connectWallet = async () => {
   try {
+    console.log('=== CONNECTING WALLET ===');
+    
     // First try to use Coinbase Wallet extension if available
     if (isCoinbaseWalletAvailable()) {
       console.log('Using Coinbase Wallet extension');
@@ -85,12 +88,15 @@ export const connectWallet = async () => {
       
       provider = new ethers.BrowserProvider(window.ethereum);
       signer = await provider.getSigner();
+      walletAddress = accounts[0];
       
       const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || '0x5FbDB2315678afecb367f032d93F642f64180aa3';
       contract = new ethers.Contract(contractAddress, CONTRACT_ABI, signer);
       
+      console.log('Wallet connected successfully:', walletAddress);
+      
       return {
-        address: accounts[0],
+        address: walletAddress,
         provider,
         signer,
         contract
@@ -110,12 +116,15 @@ export const connectWallet = async () => {
       
       provider = new ethers.BrowserProvider(window.ethereum);
       signer = await provider.getSigner();
+      walletAddress = accounts[0];
       
       const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || '0x5FbDB2315678afecb367f032d93F642f64180aa3';
       contract = new ethers.Contract(contractAddress, CONTRACT_ABI, signer);
       
+      console.log('Wallet connected successfully (fallback):', walletAddress);
+      
       return {
-        address: accounts[0],
+        address: walletAddress,
         provider,
         signer,
         contract
@@ -137,10 +146,13 @@ export const disconnectWallet = () => {
   provider = null;
   signer = null;
   contract = null;
+  walletAddress = null;
+  console.log('Wallet disconnected');
 };
 
 export const getContract = () => {
   if (!contract) {
+    console.error('Contract not available - wallet may not be connected');
     throw new Error('Wallet not connected');
   }
   return contract;
@@ -148,6 +160,7 @@ export const getContract = () => {
 
 export const getSigner = () => {
   if (!signer) {
+    console.error('Signer not available - wallet may not be connected');
     throw new Error('Wallet not connected');
   }
   return signer;
@@ -155,6 +168,7 @@ export const getSigner = () => {
 
 export const getProvider = () => {
   if (!provider) {
+    console.error('Provider not available - wallet may not be connected');
     throw new Error('Wallet not connected');
   }
   return provider;
@@ -162,25 +176,44 @@ export const getProvider = () => {
 
 export const isWalletConnected = async () => {
   try {
+    console.log('=== CHECKING WALLET CONNECTION ===');
+    
     // Check if we're in a browser environment
     if (typeof window === 'undefined') {
+      console.log('Not in browser environment');
       return null;
+    }
+
+    // If we already have a wallet address cached, return it
+    if (walletAddress) {
+      console.log('Using cached wallet address:', walletAddress);
+      return walletAddress;
     }
 
     // First check Coinbase Wallet extension
     if (isCoinbaseWalletAvailable()) {
+      console.log('Checking Coinbase Wallet extension...');
       const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-      return accounts.length > 0 ? accounts[0] : null;
+      if (accounts.length > 0) {
+        walletAddress = accounts[0];
+        console.log('Found connected Coinbase Wallet:', walletAddress);
+        return walletAddress;
+      }
     }
 
     // Fallback: Check any available Ethereum provider
     if (window.ethereum) {
       console.log('Checking any available Ethereum provider...');
       const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-      return accounts.length > 0 ? accounts[0] : null;
+      if (accounts.length > 0) {
+        walletAddress = accounts[0];
+        console.log('Found connected wallet (fallback):', walletAddress);
+        return walletAddress;
+      }
     }
 
     // If no Ethereum provider is available, return null
+    console.log('No wallet found');
     return null;
   } catch (error) {
     console.error('Error checking wallet connection:', error);

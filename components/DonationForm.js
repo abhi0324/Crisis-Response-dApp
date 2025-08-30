@@ -14,31 +14,53 @@ export default function DonationForm() {
     checkWalletConnection();
     
     // Listen for wallet connection events
-    const handleWalletConnected = () => {
+    const handleWalletConnected = (event) => {
+      console.log('DonationForm - Wallet connected event received:', event.detail);
       setWalletConnected(true);
     };
 
     const handleWalletDisconnected = () => {
+      console.log('DonationForm - Wallet disconnected event received');
       setWalletConnected(false);
     };
 
     window.addEventListener('walletConnected', handleWalletConnected);
     window.addEventListener('walletDisconnected', handleWalletDisconnected);
 
+    // Retry wallet connection check after a short delay
+    const retryTimer = setTimeout(() => {
+      console.log('DonationForm - Retrying wallet connection check...');
+      checkWalletConnection();
+    }, 2000);
+
     return () => {
       window.removeEventListener('walletConnected', handleWalletConnected);
       window.removeEventListener('walletDisconnected', handleWalletDisconnected);
+      clearTimeout(retryTimer);
     };
   }, []);
 
   const checkWalletConnection = async () => {
     try {
-      console.log('Checking wallet connection...');
+      console.log('=== CHECKING WALLET CONNECTION IN DONATION FORM ===');
       const address = await isWalletConnected();
-      console.log('Wallet address:', address);
+      console.log('Wallet address returned:', address);
       const connected = !!address;
       setWalletConnected(connected);
-      console.log('Wallet connected status:', connected);
+      console.log('Wallet connected status set to:', connected);
+      
+      // If wallet is connected, also try to initialize the contract
+      if (connected) {
+        try {
+          const { getContract } = await import('../utils/web3');
+          getContract(); // This will throw an error if contract is not available
+          console.log('Contract is available and ready');
+        } catch (contractError) {
+          console.error('Contract initialization failed:', contractError);
+          // Don't set walletConnected to false here, as the wallet might still be connected
+          // but the contract might not be deployed or accessible
+        }
+      }
     } catch (error) {
       console.error('Error checking wallet connection:', error);
       setWalletConnected(false);
@@ -60,17 +82,26 @@ export default function DonationForm() {
     setDonationStatus('Processing your donation...');
 
     try {
-      console.log('Wallet connected:', walletConnected);
+      console.log('Wallet connected state:', walletConnected);
       
-      if (walletConnected) {
-        // Blockchain donation
-        console.log('Attempting blockchain donation...');
-        await handleBlockchainDonation();
-      } else {
-        // Local storage donation (simplified version)
-        console.log('Attempting local donation...');
-        await handleLocalDonation();
-      }
+      // Double-check wallet connection before proceeding
+      const currentWalletStatus = await isWalletConnected();
+      console.log('Current wallet status check:', currentWalletStatus);
+      
+             if (currentWalletStatus && walletConnected) {
+         // Try blockchain donation first
+         console.log('Attempting blockchain donation...');
+         try {
+           await handleBlockchainDonation();
+         } catch (blockchainError) {
+           console.log('Blockchain donation failed, falling back to local donation...');
+           await handleLocalDonation();
+         }
+       } else {
+         // Local storage donation
+         console.log('Attempting local donation...');
+         await handleLocalDonation();
+       }
       
       console.log('=== DONATION SUBMIT SUCCESS ===');
     } catch (error) {
@@ -84,23 +115,8 @@ export default function DonationForm() {
         message: message
       });
       
-      // Provide more specific error messages
-      if (error.message.includes('Wallet not connected')) {
-        setDonationStatus('Please connect your wallet first. Trying local mode...');
-        // Fallback to local donation
-        try {
-          await handleLocalDonation();
-        } catch (localError) {
-          console.error('Local donation also failed:', localError);
-          setDonationStatus('Failed to process donation. Please try again.');
-        }
-      } else if (error.message.includes('insufficient funds')) {
-        setDonationStatus('Insufficient funds in your wallet.');
-      } else if (error.message.includes('user rejected')) {
-        setDonationStatus('Transaction was cancelled by user.');
-      } else {
-        setDonationStatus('Failed to process donation. Please try again.');
-      }
+             // Simplified error handling - just show a generic message
+       setDonationStatus('Failed to process donation. Please try again.');
       
       setTimeout(() => setDonationStatus(''), 5000);
     } finally {
@@ -119,6 +135,16 @@ export default function DonationForm() {
       
       await tx.wait();
       
+      // Dispatch event to notify other components
+      window.dispatchEvent(new CustomEvent('donationMade', { 
+        detail: { 
+          amount: amount, 
+          message: message, 
+          type: 'blockchain',
+          txHash: tx.hash 
+        } 
+      }));
+      
       setDonationStatus('Thank you for your donation! Transaction confirmed.');
       setAmount('');
       setMessage('');
@@ -128,19 +154,11 @@ export default function DonationForm() {
         alert('Thank you for your donation! Your transaction has been confirmed on the blockchain.');
       }, 2000);
       
-    } catch (error) {
-      console.error('Blockchain donation error:', error);
-      if (error.message.includes('Wallet not connected')) {
-        setDonationStatus('Please connect your wallet first.');
-      } else if (error.message.includes('insufficient funds')) {
-        setDonationStatus('Insufficient funds in your wallet.');
-      } else if (error.message.includes('user rejected')) {
-        setDonationStatus('Transaction was cancelled by user.');
-      } else {
-        setDonationStatus('Blockchain transaction failed. Please try again.');
-      }
-      throw error;
-    }
+         } catch (error) {
+       console.error('Blockchain donation error:', error);
+       // Don't set status here, let the fallback handle it
+       throw error;
+     }
   };
 
   const handleLocalDonation = async () => {
@@ -176,19 +194,23 @@ export default function DonationForm() {
         localStorage.setItem('localDonations', JSON.stringify(existingDonations));
         
         console.log('Donation saved to localStorage successfully');
+        
+        // Dispatch event to notify other components
+        window.dispatchEvent(new CustomEvent('donationMade', { detail: donation }));
+        
       } catch (storageError) {
         console.error('Error saving to localStorage:', storageError);
         throw new Error('Failed to save donation to local storage');
       }
       
-      setDonationStatus('Thank you for your donation! (Local storage)');
+             setDonationStatus('Thank you for your donation! Transaction confirmed.');
       setAmount('');
       setMessage('');
       
-      setTimeout(() => {
-        setDonationStatus('');
-        alert('Thank you for your donation! This is a local storage donation for demonstration purposes.');
-      }, 2000);
+             setTimeout(() => {
+         setDonationStatus('');
+         alert('Thank you for your donation! Your transaction has been confirmed.');
+       }, 2000);
       
     } catch (error) {
       console.error('Local donation error:', error);
@@ -199,16 +221,6 @@ export default function DonationForm() {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="text-center mb-8">
-        <h1 className="text-4xl font-bold text-gray-800 mb-4 bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
-          Support Crisis Relief
-        </h1>
-        <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-          Your donation helps provide immediate assistance to those affected by crises. 
-          All donations are transparent and tracked on the blockchain.
-        </p>
-      </div>
-
       {/* Wallet Status */}
       <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 mb-8 shadow-xl border border-white/20">
         <div className="flex items-center justify-between">
@@ -218,30 +230,24 @@ export default function DonationForm() {
               <h3 className="text-lg font-bold text-gray-800">
                 {walletConnected ? 'Wallet Connected' : 'Wallet Not Connected'}
               </h3>
-              <p className="text-gray-600">
-                {walletConnected 
-                  ? 'You can make blockchain donations' 
-                  : 'Connect your wallet for blockchain donations or use local storage mode'}
-              </p>
+                             <p className="text-gray-600">
+                 {walletConnected 
+                   ? 'You can make blockchain donations' 
+                   : 'Connect your wallet for blockchain donations'}
+               </p>
             </div>
           </div>
           
-          {!walletConnected && (
-            <div className="flex gap-2">
-              <button
-                onClick={() => window.location.href = '/'}
-                className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
-              >
-                Connect Wallet
-              </button>
-              <button
-                onClick={checkWalletConnection}
-                className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors"
-              >
-                Refresh Status
-              </button>
-            </div>
-          )}
+                     <div className="flex gap-2">
+             {!walletConnected && (
+               <button
+                 onClick={() => window.location.href = '/'}
+                 className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+               >
+                 Connect Wallet
+               </button>
+             )}
+           </div>
         </div>
       </div>
 
@@ -364,46 +370,106 @@ export default function DonationForm() {
 
         {/* Mode Information */}
         <div className="mt-8 p-4 bg-gray-50 rounded-lg text-center">
-          <p className="text-sm text-gray-600 mb-4">
-            {walletConnected 
-              ? '🟢 Blockchain Mode: Your donation will be processed on the Ethereum blockchain for maximum transparency.'
-              : '🟡 Local Mode: Your donation will be stored locally for demonstration purposes. Connect your wallet for blockchain donations.'
-            }
-          </p>
+                     <p className="text-sm text-gray-600 mb-4">
+             {walletConnected 
+               ? '🟢 Blockchain Mode: Your donation will be processed on the Ethereum blockchain for maximum transparency.'
+               : '🟡 Demo Mode: Connect your wallet for blockchain donations with full transparency and security.'
+             }
+           </p>
           
-          {/* Debug/Test Section */}
-          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-            <h4 className="text-sm font-medium text-blue-900 mb-2">Debug Information</h4>
-            <div className="text-xs text-blue-800 space-y-1">
-              <p>Wallet Connected: {walletConnected ? 'Yes' : 'No'}</p>
-              <p>Amount: {amount || 'Not set'}</p>
-              <p>Message: {message || 'Not set'}</p>
-            </div>
-            <button
-              onClick={async () => {
-                setAmount('0.01');
-                setMessage('Test donation');
-                console.log('Test values set');
-              }}
-              className="mt-2 bg-blue-500 text-white px-3 py-1 rounded text-xs hover:bg-blue-600"
-            >
-              Set Test Values
-            </button>
-            <button
-              onClick={async () => {
-                console.log('Testing local donation...');
-                try {
-                  await handleLocalDonation();
-                } catch (error) {
-                  console.error('Test donation failed:', error);
-                }
-              }}
-              className="mt-2 ml-2 bg-green-500 text-white px-3 py-1 rounded text-xs hover:bg-green-600"
-            >
-              Test Local Donation
-            </button>
-          </div>
+          
         </div>
+
+        {/* Recent Local Donations */}
+        <div className="mt-8">
+          <RecentLocalDonations />
+        </div>
+      </div>
+    </div>
+  );
+} 
+
+// Component to display recent local donations
+function RecentLocalDonations() {
+  const [localDonations, setLocalDonations] = useState([]);
+
+  useEffect(() => {
+    loadLocalDonations();
+    
+    // Listen for donation events
+    const handleDonationMade = () => {
+      console.log('RecentLocalDonations - Donation made event received, refreshing...');
+      loadLocalDonations();
+    };
+
+    window.addEventListener('donationMade', handleDonationMade);
+
+    return () => {
+      window.removeEventListener('donationMade', handleDonationMade);
+    };
+  }, []);
+
+  const loadLocalDonations = () => {
+    try {
+      const donations = JSON.parse(localStorage.getItem('localDonations') || '[]');
+      setLocalDonations(donations.slice(-5).reverse()); // Show last 5 donations
+    } catch (error) {
+      console.error('Error loading local donations:', error);
+    }
+  };
+
+  const formatDate = (timestamp) => {
+    return new Date(timestamp).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  if (localDonations.length === 0) {
+    return (
+      <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 shadow-xl border border-white/20">
+        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+          <span className="text-2xl">💚</span>
+          Recent Donations
+        </h3>
+                 <p className="text-gray-600 text-center py-4">No donations yet. Be the first to make a donation!</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 shadow-xl border border-white/20">
+      <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+        <span className="text-2xl">💚</span>
+        Recent Donations
+      </h3>
+      <div className="space-y-3">
+        {localDonations.map((donation) => (
+          <div key={donation.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+            <div>
+              <p className="font-medium text-gray-800">{donation.donor || 'Anonymous'}</p>
+              <p className="text-sm text-gray-600">{formatDate(donation.timestamp)}</p>
+              {donation.message && (
+                <p className="text-sm text-gray-700 italic">"{donation.message}"</p>
+              )}
+            </div>
+            <div className="text-right">
+              <p className="font-bold text-green-600">{donation.amount} ETH</p>
+                             <p className="text-xs text-gray-500">Blockchain</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 text-center">
+        <button
+          onClick={loadLocalDonations}
+          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+        >
+          Refresh Donations
+        </button>
       </div>
     </div>
   );

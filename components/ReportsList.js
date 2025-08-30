@@ -570,33 +570,7 @@ const ReportsList = () => {
           )}
         </div>
 
-        {/* Data Management */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 mt-8 shadow-xl border border-white/20">
-          <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <span className="text-2xl">🗑️</span>
-            Data Management
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <button
-              onClick={handleDeleteAllReports}
-              className="bg-red-500 text-white px-4 py-3 rounded-lg hover:bg-red-600 transition-colors shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-medium"
-            >
-              Delete All Reports
-            </button>
-            <button
-              onClick={handleDeleteAllReporters}
-              className="bg-orange-500 text-white px-4 py-3 rounded-lg hover:bg-orange-600 transition-colors shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-medium"
-            >
-              Delete All Reporters
-            </button>
-            <button
-              onClick={handleDeleteAllData}
-              className="bg-purple-500 text-white px-4 py-3 rounded-lg hover:bg-purple-600 transition-colors shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-medium"
-            >
-              Delete Everything
-            </button>
-          </div>
-        </div>
+
       </div>
 
       {/* Authentication Modal */}
